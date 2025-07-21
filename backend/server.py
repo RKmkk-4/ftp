@@ -71,6 +71,13 @@ class FTPOperationResponse(BaseModel):
     status: str
     message: str
 
+class FTPRenameRequest(BaseModel):
+    old_name: str
+    new_name: str
+
+class FTPCreateDirectoryRequest(BaseModel):
+    directory_name: str
+
 # FTP Client Manager
 class FTPClientManager:
     def __init__(self):
@@ -210,6 +217,53 @@ class FTPClientManager:
             return True, f"Changed directory to {new_path}"
         except Exception as e:
             return False, f"Failed to change directory: {str(e)}"
+    
+    def delete_file(self, session_id: str, filename: str) -> tuple:
+        try:
+            if session_id not in self.connections:
+                return False, "No active FTP connection"
+            
+            ftp = self.connections[session_id]['ftp']
+            
+            # Try to delete as file first, then as directory
+            try:
+                ftp.delete(filename)
+                return True, f"File '{filename}' deleted successfully"
+            except:
+                try:
+                    ftp.rmd(filename)
+                    return True, f"Directory '{filename}' deleted successfully"
+                except Exception as e:
+                    return False, f"Failed to delete '{filename}': {str(e)}"
+                    
+        except Exception as e:
+            return False, f"Failed to delete: {str(e)}"
+    
+    def rename_file(self, session_id: str, old_name: str, new_name: str) -> tuple:
+        try:
+            if session_id not in self.connections:
+                return False, "No active FTP connection"
+            
+            ftp = self.connections[session_id]['ftp']
+            
+            ftp.rename(old_name, new_name)
+            return True, f"Renamed '{old_name}' to '{new_name}'"
+            
+        except Exception as e:
+            return False, f"Failed to rename: {str(e)}"
+    
+    def create_directory(self, session_id: str, directory_name: str) -> tuple:
+        try:
+            if session_id not in self.connections:
+                return False, "No active FTP connection"
+            
+            ftp = self.connections[session_id]['ftp']
+            
+            ftp.mkd(directory_name)
+            return True, f"Directory '{directory_name}' created successfully"
+            
+        except Exception as e:
+            return False, f"Failed to create directory: {str(e)}"
 
 # Create FTP manager instance
 ftp_manager = FTPClientManager()
@@ -352,6 +406,46 @@ async def change_ftp_directory(session_id: str, path: str = Form(...)):
         ftp_manager.change_directory,
         session_id,
         path
+    )
+    
+    return FTPOperationResponse(status="success" if success else "error", message=message)
+
+@api_router.delete("/ftp/delete/{session_id}/{filename}")
+async def delete_ftp_file(session_id: str, filename: str):
+    """Delete a file or directory from FTP server"""
+    loop = asyncio.get_event_loop()
+    success, message = await loop.run_in_executor(
+        executor,
+        ftp_manager.delete_file,
+        session_id,
+        filename
+    )
+    
+    return FTPOperationResponse(status="success" if success else "error", message=message)
+
+@api_router.put("/ftp/rename/{session_id}")
+async def rename_ftp_file(session_id: str, rename_request: FTPRenameRequest):
+    """Rename a file or directory on FTP server"""
+    loop = asyncio.get_event_loop()
+    success, message = await loop.run_in_executor(
+        executor,
+        ftp_manager.rename_file,
+        session_id,
+        rename_request.old_name,
+        rename_request.new_name
+    )
+    
+    return FTPOperationResponse(status="success" if success else "error", message=message)
+
+@api_router.post("/ftp/create-directory/{session_id}")
+async def create_ftp_directory(session_id: str, directory_request: FTPCreateDirectoryRequest):
+    """Create a new directory on FTP server"""
+    loop = asyncio.get_event_loop()
+    success, message = await loop.run_in_executor(
+        executor,
+        ftp_manager.create_directory,
+        session_id,
+        directory_request.directory_name
     )
     
     return FTPOperationResponse(status="success" if success else "error", message=message)
