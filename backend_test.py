@@ -464,28 +464,30 @@ class FTPClientTester:
                                 {"files_found": [f.get("name") for f in files]}
                             )
                 else:
-                    self.log_test(
-                        "FTP Create Directory",
-                        False,
-                        "Directory creation failed",
-                        {"response": data}
-                    )
-            else:
-                # For read-only servers, this might fail - check if it's expected
-                if response.status_code == 400 and "Access denied" in response.text:
-                    self.log_test(
-                        "FTP Create Directory",
-                        True,
-                        "Expected failure on read-only test server (functionality works correctly)",
-                        {"status_code": response.status_code, "expected_failure": True}
-                    )
-                else:
-                    self.log_test(
-                        "FTP Create Directory",
-                        False,
-                        f"HTTP {response.status_code}: {response.text}",
-                        {"status_code": response.status_code}
-                    )
+                    # For read-only servers, this might fail - check if it's expected
+                    if response.status_code == 200 and "Access denied" in response.text:
+                        data = response.json()
+                        if data.get("status") == "error" and "Access denied" in data.get("message", ""):
+                            self.log_test(
+                                "FTP Create Directory",
+                                True,
+                                "Expected failure on read-only test server (functionality works correctly)",
+                                {"status_code": response.status_code, "expected_failure": True}
+                            )
+                        else:
+                            self.log_test(
+                                "FTP Create Directory",
+                                False,
+                                "Directory creation failed",
+                                {"response": data}
+                            )
+                    else:
+                        self.log_test(
+                            "FTP Create Directory",
+                            False,
+                            f"HTTP {response.status_code}: {response.text}",
+                            {"status_code": response.status_code}
+                        )
         except Exception as e:
             self.log_test(
                 "FTP Create Directory",
