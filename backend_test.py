@@ -959,6 +959,9 @@ class FTPClientTester:
         
         self.test_ftp_disconnect()
         
+        # Test edge cases
+        self.test_edge_cases()
+        
         # Summary
         print("\n" + "="*60)
         print("📊 TEST SUMMARY")
