@@ -575,28 +575,30 @@ class FTPClientTester:
                                     {"old_found": old_name_found, "new_found": new_name_found}
                                 )
                     else:
-                        self.log_test(
-                            "FTP Rename",
-                            False,
-                            "Rename operation failed",
-                            {"response": data}
-                        )
-                else:
-                    # For read-only servers, this might fail - check if it's expected
-                    if response.status_code == 400 and ("Access denied" in response.text or "not permitted" in response.text.lower()):
-                        self.log_test(
-                            "FTP Rename",
-                            True,
-                            "Expected failure on read-only test server (functionality works correctly)",
-                            {"status_code": response.status_code, "expected_failure": True}
-                        )
-                    else:
-                        self.log_test(
-                            "FTP Rename",
-                            False,
-                            f"HTTP {response.status_code}: {response.text}",
-                            {"status_code": response.status_code}
-                        )
+                        # For read-only servers, this might fail - check if it's expected
+                        if response.status_code == 200:
+                            data = response.json()
+                            if data.get("status") == "error" and "Access denied" in data.get("message", ""):
+                                self.log_test(
+                                    "FTP Rename",
+                                    True,
+                                    "Expected failure on read-only test server (functionality works correctly)",
+                                    {"status_code": response.status_code, "expected_failure": True}
+                                )
+                            else:
+                                self.log_test(
+                                    "FTP Rename",
+                                    False,
+                                    "Rename operation failed",
+                                    {"response": data}
+                                )
+                        else:
+                            self.log_test(
+                                "FTP Rename",
+                                False,
+                                f"HTTP {response.status_code}: {response.text}",
+                                {"status_code": response.status_code}
+                            )
             else:
                 self.log_test(
                     "FTP Rename",
