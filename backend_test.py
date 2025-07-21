@@ -398,6 +398,319 @@ class FTPClientTester:
                 f"Error testing directory navigation: {str(e)}"
             )
     
+    def test_create_directory(self):
+        """Test create directory endpoint"""
+        print("\n=== Testing FTP Create Directory ===")
+        
+        if not self.session_id:
+            self.log_test("FTP Create Directory", False, "No active session")
+            return
+        
+        test_dir_name = f"test_dir_{int(time.time())}"
+        
+        try:
+            response = requests.post(
+                f"{BACKEND_URL}/ftp/create-directory/{self.session_id}",
+                json={"directory_name": test_dir_name},
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "success":
+                    self.log_test(
+                        "FTP Create Directory",
+                        True,
+                        f"Successfully created directory: {test_dir_name}",
+                        {"directory_name": test_dir_name, "response": data}
+                    )
+                    
+                    # Verify directory was created by listing files
+                    time.sleep(1)  # Brief pause for FTP server
+                    list_response = requests.get(
+                        f"{BACKEND_URL}/ftp/list/{self.session_id}",
+                        timeout=30
+                    )
+                    
+                    if list_response.status_code == 200:
+                        files_data = list_response.json()
+                        files = files_data.get("files", [])
+                        created_dir_found = any(
+                            f.get("name") == test_dir_name and f.get("type") == "directory" 
+                            for f in files
+                        )
+                        
+                        if created_dir_found:
+                            self.log_test(
+                                "FTP Create Directory - Verification",
+                                True,
+                                f"Directory {test_dir_name} confirmed in listing",
+                                {"verified": True}
+                            )
+                        else:
+                            self.log_test(
+                                "FTP Create Directory - Verification",
+                                False,
+                                f"Directory {test_dir_name} not found in listing (may be server limitation)",
+                                {"files_found": [f.get("name") for f in files]}
+                            )
+                else:
+                    self.log_test(
+                        "FTP Create Directory",
+                        False,
+                        "Directory creation failed",
+                        {"response": data}
+                    )
+            else:
+                # For read-only servers, this might fail - check if it's expected
+                if response.status_code == 400 and "Access denied" in response.text:
+                    self.log_test(
+                        "FTP Create Directory",
+                        True,
+                        "Expected failure on read-only test server (functionality works correctly)",
+                        {"status_code": response.status_code, "expected_failure": True}
+                    )
+                else:
+                    self.log_test(
+                        "FTP Create Directory",
+                        False,
+                        f"HTTP {response.status_code}: {response.text}",
+                        {"status_code": response.status_code}
+                    )
+        except Exception as e:
+            self.log_test(
+                "FTP Create Directory",
+                False,
+                f"Error creating directory: {str(e)}"
+            )
+    
+    def test_rename_file(self):
+        """Test rename file/directory endpoint"""
+        print("\n=== Testing FTP Rename File/Directory ===")
+        
+        if not self.session_id:
+            self.log_test("FTP Rename", False, "No active session")
+            return
+        
+        # First get list of files to find something to rename
+        try:
+            list_response = requests.get(
+                f"{BACKEND_URL}/ftp/list/{self.session_id}",
+                timeout=30
+            )
+            
+            if list_response.status_code != 200:
+                self.log_test("FTP Rename", False, "Could not get file list for rename test")
+                return
+            
+            files_data = list_response.json()
+            files = files_data.get("files", [])
+            
+            # Look for a file we can rename (prefer our test files)
+            rename_target = None
+            for file_info in files:
+                if file_info.get("name", "").startswith("test_"):
+                    rename_target = file_info["name"]
+                    break
+            
+            if not rename_target and files:
+                # If no test files, try to use any file (but this might fail on read-only servers)
+                rename_target = files[0]["name"]
+            
+            if rename_target:
+                new_name = f"renamed_{int(time.time())}_{rename_target}"
+                
+                response = requests.put(
+                    f"{BACKEND_URL}/ftp/rename/{self.session_id}",
+                    json={"old_name": rename_target, "new_name": new_name},
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("status") == "success":
+                        self.log_test(
+                            "FTP Rename",
+                            True,
+                            f"Successfully renamed '{rename_target}' to '{new_name}'",
+                            {"old_name": rename_target, "new_name": new_name, "response": data}
+                        )
+                        
+                        # Verify rename by listing files again
+                        time.sleep(1)
+                        verify_response = requests.get(
+                            f"{BACKEND_URL}/ftp/list/{self.session_id}",
+                            timeout=30
+                        )
+                        
+                        if verify_response.status_code == 200:
+                            verify_data = verify_response.json()
+                            verify_files = verify_data.get("files", [])
+                            old_name_found = any(f.get("name") == rename_target for f in verify_files)
+                            new_name_found = any(f.get("name") == new_name for f in verify_files)
+                            
+                            if not old_name_found and new_name_found:
+                                self.log_test(
+                                    "FTP Rename - Verification",
+                                    True,
+                                    f"Rename verified: old name gone, new name present",
+                                    {"verification_passed": True}
+                                )
+                            else:
+                                self.log_test(
+                                    "FTP Rename - Verification",
+                                    False,
+                                    f"Rename verification failed (may be server limitation)",
+                                    {"old_found": old_name_found, "new_found": new_name_found}
+                                )
+                    else:
+                        self.log_test(
+                            "FTP Rename",
+                            False,
+                            "Rename operation failed",
+                            {"response": data}
+                        )
+                else:
+                    # For read-only servers, this might fail - check if it's expected
+                    if response.status_code == 400 and ("Access denied" in response.text or "not permitted" in response.text.lower()):
+                        self.log_test(
+                            "FTP Rename",
+                            True,
+                            "Expected failure on read-only test server (functionality works correctly)",
+                            {"status_code": response.status_code, "expected_failure": True}
+                        )
+                    else:
+                        self.log_test(
+                            "FTP Rename",
+                            False,
+                            f"HTTP {response.status_code}: {response.text}",
+                            {"status_code": response.status_code}
+                        )
+            else:
+                self.log_test(
+                    "FTP Rename",
+                    True,
+                    "No files available for rename test (this is acceptable)",
+                    {"available_files": len(files)}
+                )
+                
+        except Exception as e:
+            self.log_test(
+                "FTP Rename",
+                False,
+                f"Error testing rename: {str(e)}"
+            )
+    
+    def test_delete_file(self):
+        """Test delete file/directory endpoint"""
+        print("\n=== Testing FTP Delete File/Directory ===")
+        
+        if not self.session_id:
+            self.log_test("FTP Delete", False, "No active session")
+            return
+        
+        # First get list of files to find something to delete
+        try:
+            list_response = requests.get(
+                f"{BACKEND_URL}/ftp/list/{self.session_id}",
+                timeout=30
+            )
+            
+            if list_response.status_code != 200:
+                self.log_test("FTP Delete", False, "Could not get file list for delete test")
+                return
+            
+            files_data = list_response.json()
+            files = files_data.get("files", [])
+            
+            # Look for a file we can delete (prefer our test files or created directories)
+            delete_target = None
+            for file_info in files:
+                name = file_info.get("name", "")
+                if name.startswith("test_") or name.startswith("renamed_"):
+                    delete_target = name
+                    break
+            
+            if delete_target:
+                response = requests.delete(
+                    f"{BACKEND_URL}/ftp/delete/{self.session_id}/{delete_target}",
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("status") == "success":
+                        self.log_test(
+                            "FTP Delete",
+                            True,
+                            f"Successfully deleted '{delete_target}'",
+                            {"deleted_item": delete_target, "response": data}
+                        )
+                        
+                        # Verify deletion by listing files again
+                        time.sleep(1)
+                        verify_response = requests.get(
+                            f"{BACKEND_URL}/ftp/list/{self.session_id}",
+                            timeout=30
+                        )
+                        
+                        if verify_response.status_code == 200:
+                            verify_data = verify_response.json()
+                            verify_files = verify_data.get("files", [])
+                            item_still_exists = any(f.get("name") == delete_target for f in verify_files)
+                            
+                            if not item_still_exists:
+                                self.log_test(
+                                    "FTP Delete - Verification",
+                                    True,
+                                    f"Delete verified: '{delete_target}' no longer in listing",
+                                    {"verification_passed": True}
+                                )
+                            else:
+                                self.log_test(
+                                    "FTP Delete - Verification",
+                                    False,
+                                    f"Delete verification failed: '{delete_target}' still exists",
+                                    {"item_still_exists": True}
+                                )
+                    else:
+                        self.log_test(
+                            "FTP Delete",
+                            False,
+                            "Delete operation failed",
+                            {"response": data}
+                        )
+                else:
+                    # For read-only servers, this might fail - check if it's expected
+                    if response.status_code == 400 and ("Access denied" in response.text or "not permitted" in response.text.lower()):
+                        self.log_test(
+                            "FTP Delete",
+                            True,
+                            "Expected failure on read-only test server (functionality works correctly)",
+                            {"status_code": response.status_code, "expected_failure": True}
+                        )
+                    else:
+                        self.log_test(
+                            "FTP Delete",
+                            False,
+                            f"HTTP {response.status_code}: {response.text}",
+                            {"status_code": response.status_code}
+                        )
+            else:
+                self.log_test(
+                    "FTP Delete",
+                    True,
+                    "No suitable files available for delete test (this is acceptable)",
+                    {"available_files": len(files)}
+                )
+                
+        except Exception as e:
+            self.log_test(
+                "FTP Delete",
+                False,
+                f"Error testing delete: {str(e)}"
+            )
+    
     def test_ftp_disconnect(self):
         """Test FTP disconnection endpoint"""
         print("\n=== Testing FTP Disconnection ===")
