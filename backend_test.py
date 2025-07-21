@@ -796,6 +796,12 @@ class FTPClientTester:
         self.test_file_upload()
         self.test_file_download()
         self.test_directory_navigation()
+        
+        # Test new endpoints
+        self.test_create_directory()
+        self.test_rename_file()
+        self.test_delete_file()
+        
         self.test_ftp_disconnect()
         
         # Summary
