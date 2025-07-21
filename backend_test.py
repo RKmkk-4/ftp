@@ -912,6 +912,33 @@ class FTPClientTester:
                 False,
                 f"Error testing invalid session create directory: {str(e)}"
             )
+    
+    def test_basic_api_health(self):
+        """Test basic API health"""
+        print("\n=== Testing Basic API Health ===")
+        
+        try:
+            response = requests.get(f"{BACKEND_URL}/", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test(
+                    "API Health Check",
+                    True,
+                    "API is responding correctly",
+                    {"response": data}
+                )
+            else:
+                self.log_test(
+                    "API Health Check",
+                    False,
+                    f"HTTP {response.status_code}: {response.text}"
+                )
+        except Exception as e:
+            self.log_test(
+                "API Health Check",
+                False,
+                f"API health check failed: {str(e)}"
+            )
         """Test basic API health"""
         print("\n=== Testing Basic API Health ===")
         
