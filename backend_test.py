@@ -769,7 +769,149 @@ class FTPClientTester:
                 f"Error disconnecting: {str(e)}"
             )
     
-    def test_basic_api_health(self):
+    def test_edge_cases(self):
+        """Test edge cases and error handling"""
+        print("\n=== Testing Edge Cases and Error Handling ===")
+        
+        # Test operations with invalid session ID
+        invalid_session = "invalid-session-id"
+        
+        try:
+            # Test list with invalid session
+            response = requests.get(
+                f"{BACKEND_URL}/ftp/list/{invalid_session}",
+                timeout=10
+            )
+            
+            if response.status_code == 400:
+                self.log_test(
+                    "Edge Case - Invalid Session (List)",
+                    True,
+                    "Correctly rejected invalid session ID",
+                    {"status_code": response.status_code}
+                )
+            else:
+                self.log_test(
+                    "Edge Case - Invalid Session (List)",
+                    False,
+                    f"Should have returned 400, got {response.status_code}"
+                )
+        except Exception as e:
+            self.log_test(
+                "Edge Case - Invalid Session (List)",
+                False,
+                f"Error testing invalid session: {str(e)}"
+            )
+        
+        try:
+            # Test delete with invalid session
+            response = requests.delete(
+                f"{BACKEND_URL}/ftp/delete/{invalid_session}/nonexistent.txt",
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "error" and "No active FTP connection" in data.get("message", ""):
+                    self.log_test(
+                        "Edge Case - Invalid Session (Delete)",
+                        True,
+                        "Correctly handled invalid session for delete operation",
+                        {"response": data}
+                    )
+                else:
+                    self.log_test(
+                        "Edge Case - Invalid Session (Delete)",
+                        False,
+                        "Unexpected response for invalid session",
+                        {"response": data}
+                    )
+            else:
+                self.log_test(
+                    "Edge Case - Invalid Session (Delete)",
+                    False,
+                    f"Unexpected status code: {response.status_code}"
+                )
+        except Exception as e:
+            self.log_test(
+                "Edge Case - Invalid Session (Delete)",
+                False,
+                f"Error testing invalid session delete: {str(e)}"
+            )
+        
+        try:
+            # Test rename with invalid session
+            response = requests.put(
+                f"{BACKEND_URL}/ftp/rename/{invalid_session}",
+                json={"old_name": "test.txt", "new_name": "renamed.txt"},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "error" and "No active FTP connection" in data.get("message", ""):
+                    self.log_test(
+                        "Edge Case - Invalid Session (Rename)",
+                        True,
+                        "Correctly handled invalid session for rename operation",
+                        {"response": data}
+                    )
+                else:
+                    self.log_test(
+                        "Edge Case - Invalid Session (Rename)",
+                        False,
+                        "Unexpected response for invalid session",
+                        {"response": data}
+                    )
+            else:
+                self.log_test(
+                    "Edge Case - Invalid Session (Rename)",
+                    False,
+                    f"Unexpected status code: {response.status_code}"
+                )
+        except Exception as e:
+            self.log_test(
+                "Edge Case - Invalid Session (Rename)",
+                False,
+                f"Error testing invalid session rename: {str(e)}"
+            )
+        
+        try:
+            # Test create directory with invalid session
+            response = requests.post(
+                f"{BACKEND_URL}/ftp/create-directory/{invalid_session}",
+                json={"directory_name": "test_dir"},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "error" and "No active FTP connection" in data.get("message", ""):
+                    self.log_test(
+                        "Edge Case - Invalid Session (Create Directory)",
+                        True,
+                        "Correctly handled invalid session for create directory operation",
+                        {"response": data}
+                    )
+                else:
+                    self.log_test(
+                        "Edge Case - Invalid Session (Create Directory)",
+                        False,
+                        "Unexpected response for invalid session",
+                        {"response": data}
+                    )
+            else:
+                self.log_test(
+                    "Edge Case - Invalid Session (Create Directory)",
+                    False,
+                    f"Unexpected status code: {response.status_code}"
+                )
+        except Exception as e:
+            self.log_test(
+                "Edge Case - Invalid Session (Create Directory)",
+                False,
+                f"Error testing invalid session create directory: {str(e)}"
+            )
         """Test basic API health"""
         print("\n=== Testing Basic API Health ===")
         
